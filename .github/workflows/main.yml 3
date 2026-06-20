@@ -1,0 +1,49 @@
+name: Convertir ZIP en APK
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Recuperer le code du depot
+        uses: actions/checkout@v4
+
+      - name: 2. Installer Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: 3. Installer Flutter (Compilateur Android officiel)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: 4. Creer le projet et decompresser les fichiers
+        run: |
+          flutter create --template=app --platforms=android photo_sorter_app
+          cd photo_sorter_app
+          unzip ../Salut.zip -d build_temp
+          
+          # Force le fichier principal en index.html pour Android
+          mkdir -p assets/www
+          if [ -f "build_temp/photo-swipe-sorter.html" ]; then
+            cp "build_temp/photo-swipe-sorter.html" "assets/www/index.html"
+          elif [ -f "build_temp/index.html" ]; then
+            cp "build_temp/index.html" "assets/www/index.html"
+          fi
+
+      - name: 5. Generer l'APK Android
+        run: |
+          cd photo_sorter_app
+          flutter build apk --release
+
+      - name: 6. Telecharger l'APK genere
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mon-APK-PhotoSorter
+          path: photo_sorter_app/build/app/outputs/flutter-apk/app-release.apk
