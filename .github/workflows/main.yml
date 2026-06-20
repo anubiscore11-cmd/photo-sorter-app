@@ -1,0 +1,114 @@
+name: Convertir HTML en APK
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Recuperer le code du depot
+        uses: actions/checkout@v4
+
+      - name: 2. Configurer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: 3. Extraire le ZIP et verifier la structure
+        run: |
+          mkdir -p android-app/app/src/main/assets/www
+          mkdir -p android-app/app/src/main/java/com/photosorter/app
+          
+          # Extraction propre de ton archive
+          unzip Salut.zip -d android-app/app/src/main/assets/www/
+          
+          # Force le renommage pour l'accueil Android
+          cd android-app/app/src/main/assets/www
+          if [ -f "photo-swipe-sorter.html" ]; then
+            cp "photo-swipe-sorter.html" "index.html"
+          fi
+          cd '../../../../../../'
+
+      - name: 4. Generer l'architecture Android
+        run: |
+          # Fichier settings
+          echo "include ':app'" > android-app/settings.gradle
+
+          # Fichier build racine
+          cat << 'EOF' > android-app/build.gradle
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.2.2' }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          EOF
+
+          # Fichier build application
+          cat << 'EOF' > android-app/app/build.gradle
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.photosorter.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.photosorter.app"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+          }
+          EOF
+
+          # Manifeste de l'application
+          cat << 'EOF' > android-app/app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application android:label="PhotoSorter" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # Code Java pour charger ton interface HTML
+          cat << 'EOF' > android-app/app/src/main/java/com/photosorter/app/MainActivity.java
+          package com.photosorter.app;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  WebView web = new WebView(this);
+                  web.getSettings().setJavaScriptEnabled(true);
+                  web.getSettings().setAllowFileAccess(true);
+                  web.getSettings().setAllowContentAccess(true);
+                  web.setWebViewClient(new WebViewClient());
+                  web.loadUrl("file:///android_asset/www/index.html");
+                  setContentView(web);
+              }
+          }
+          EOF
+
+      - name: 5. Compiler avec Gradle
+        run: |
+          cd android-app
+          gradle wrapper --gradle-version 8.5
+          ./gradlew assembleRelease
+
+      - name: 6. Telecharger l'APK (v4 Officiel)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mon-APK-PhotoSorter
+          path: android-app/app/build/outputs/apk/release/app-release-unsigned.apk
