@@ -1,0 +1,29 @@
+name: Convertir ZIP en APK
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v3
+
+      - name: Décompresser le fichier ZIP
+        run: unzip Salut.zip -d build_folder
+
+      - name: Compiler en APK
+        uses: darkshredder/website-to-apk-action@v2.0.1
+        with:
+          build-folder-path: "build_folder/"
+          app-name: "PhotoSorter"
+          output-folder-path: "output/"
+
+      - name: Télécharger l'APK généré
+        uses: actions/upload-artifact@v3
+        with:
+          name: Mon-APK-PhotoSorter
+          path: output/
